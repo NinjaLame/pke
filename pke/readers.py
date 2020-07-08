@@ -7,6 +7,16 @@ import xml.etree.ElementTree as etree
 import spacy
 
 from pke.data_structures import Document
+from nltk.tag import CRFTagger
+from nltk.tokenize import sent_tokenize, word_tokenize, TweetTokenizer
+from nltk.corpus import stopwords
+import string
+from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
+ct = CRFTagger()
+ct.set_model_file('./all_indo_man_tag_corpus_model.crf copy.tagger')
+factory = StemmerFactory()
+stemmer = factory.create_stemmer()
+tokenizer_words = TweetTokenizer()
 
 
 class Reader(object):
@@ -68,25 +78,43 @@ class RawTextReader(Reader):
             max_length (int): maximum number of characters in a single text for
                 spacy, default to 1,000,000 characters (1mb).
         """
+        if self.language != 'id':
+            max_length = kwargs.get('max_length', 10**6)
+            nlp = spacy.load(self.language,
+                            max_length=max_length)
+            spacy_doc = nlp(text)
+            sentences = []
+            for sentence_id, sentence in enumerate(spacy_doc.sents):
+                sentences.append({
+                    "words": [token.text for token in sentence],
+                    "lemmas": [token.lemma_ for token in sentence],
+                    "POS": [token.pos_ for token in sentence],
+                    "char_offsets": [(token.idx, token.idx + len(token.text))
+                                        for token in sentence]
+                })
+            
+        else:
+            text = text.lower()
+            token_words = [tokenizer_words.tokenize(t) for t in sent_tokenize(text)]
+            token_lemmas = []
+            token_pos = ct.tag_sents(token_words)
 
-        max_length = kwargs.get('max_length', 10**6)
-        nlp = spacy.load(self.language,
-                         max_length=max_length)
-        spacy_doc = nlp(text)
-
-        sentences = []
-        for sentence_id, sentence in enumerate(spacy_doc.sents):
-            sentences.append({
-                "words": [token.text for token in sentence],
-                "lemmas": [token.lemma_ for token in sentence],
-                "POS": [token.pos_ for token in sentence],
-                "char_offsets": [(token.idx, token.idx + len(token.text))
-                                     for token in sentence]
-            })
-
+            for token in token_words:
+                temp = []
+                for word in token:
+                    temp.append(stemmer.stem(word))
+                token_lemmas.append(temp)
+            
+            sentences = []
+            for idx, _ in enumerate(token_words):
+                sentences.append({
+                            "words": token_words[idx],
+                            "lemmas": token_lemmas[idx],
+                            "POS": token_pos[idx],
+                        })
         doc = Document.from_sentences(sentences,
-                                      input_file=kwargs.get('input_file', None),
-                                      **kwargs)
+                                        input_file=kwargs.get('input_file', None),
+                                        **kwargs)
 
         return doc
 

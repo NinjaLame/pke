@@ -181,6 +181,10 @@ class TopicRank(LoadFile):
                             if p_j < p_i:
                                 gap -= len(self.candidates[c_j].lexical_form) - 1
                             self.graph[i][j]['weight'] += 1.0 / gap
+        
+        # edges = [(a, b, {"weight": float("{:.2f}".format(w['weight']))}) for a,b,w in self.graph.edges.data()]
+        # print(edges)
+
 
     def candidate_weighting(self,
                             threshold=0.74,
